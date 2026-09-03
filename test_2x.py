@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
     QHBoxLayout, QLabel, QLineEdit, QGridLayout
 )
+from PyQt6.QtCore import QTimer
 from martypy import Marty
 
 
@@ -11,6 +12,11 @@ class MartyApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.my_marty = None
+        self.automated_running = False
+        self.timer_auto = QTimer()
+        self.timer_auto.timeout.connect(self.automated_step)
+        self.auto_time_left = 0
+
         self.initUI()
 
     
@@ -69,11 +75,11 @@ class MartyApp(QMainWindow):
         btn_right = QPushButton("DROITE")
         btn_stop = QPushButton("STOP")
 
-        btn_up.clicked.connect(lambda: self.move_forward())
-        btn_down.clicked.connect(lambda: self.move_backward())
-        btn_left.clicked.connect(lambda: self.move_left())
-        btn_right.clicked.connect(lambda: self.move_right())
-        btn_stop.clicked.connect(lambda: self.stop_robot())
+        btn_up.clicked.connect(self.move_forward)
+        btn_down.clicked.connect(self.move_backward)
+        btn_left.clicked.connect(self.move_left)
+        btn_right.clicked.connect(self.move_right)
+        btn_stop.clicked.connect(self.stop_robot)
 
         direction_layout.addWidget(btn_up, 0, 1)
         direction_layout.addWidget(btn_left, 1, 0)
@@ -82,6 +88,21 @@ class MartyApp(QMainWindow):
         direction_layout.addWidget(btn_down, 2, 1)
 
         main_layout.addLayout(direction_layout)
+
+        # --- Boutons automatisés ---
+        auto_layout = QHBoxLayout()
+
+        self.btn_auto_start = QPushButton("Lancement")
+        self.btn_auto_start.setEnabled(False)
+        self.btn_auto_start.clicked.connect(self.start_automated)
+        auto_layout.addWidget(self.btn_auto_start)
+
+        self.btn_auto_cancel = QPushButton("Annulation")
+        self.btn_auto_cancel.setEnabled(False)
+        self.btn_auto_cancel.clicked.connect(self.cancel_automated)
+        auto_layout.addWidget(self.btn_auto_cancel)
+
+        main_layout.addLayout(auto_layout)
 
         # --- Widget central ---
         widget_central = QWidget()
@@ -137,6 +158,8 @@ class MartyApp(QMainWindow):
         self.btn_get_name.setEnabled(True)
         self.btn_set_name.setEnabled(True)
         self.txt_new_name.setEnabled(True)
+        self.btn_auto_start.setEnabled(True)
+        self.btn_auto_cancel.setEnabled(True)
 
     def deconnecter_robot(self):
         if self.my_marty:
@@ -154,6 +177,8 @@ class MartyApp(QMainWindow):
         self.btn_get_name.setEnabled(False)
         self.btn_set_name.setEnabled(False)
         self.txt_new_name.setEnabled(False)
+        self.btn_auto_start.setEnabled(False)
+        self.btn_auto_cancel.setEnabled(False)
 
     def check_battery(self):
         if self.my_marty:
@@ -201,6 +226,47 @@ class MartyApp(QMainWindow):
     def stop_robot(self):
         if self.my_marty:
             self.my_marty.stop()
+
+    # --- Procédure automatisée ---
+    def start_automated(self):
+        if not self.my_marty:
+            print("Robot non connecté.")
+            return
+
+        print("Procédure automatisée lancée.")
+        self.automated_running = True
+        self.auto_time_left = 30  # 30 secondes
+        self.timer_auto.start(1000)  # 1 seconde
+
+    def cancel_automated(self):
+        print("Procédure automatisée annulée.")
+        self.automated_running = False
+        self.timer_auto.stop()
+        self.stop_robot()
+
+    def automated_step(self):
+        if not self.automated_running:
+            return
+
+        if self.auto_time_left <= 0:
+            print("Procédure automatisée terminée.")
+            self.automated_running = False
+            self.timer_auto.stop()
+            self.stop_robot()
+            return
+
+        # Lecture couleur
+        try:
+            r, g, b = self.my_marty.get_color_sensor()
+            self.my_marty.set_eye_color(r, g, b)
+            print(f"Couleur détectée : {r}, {g}, {b}")
+        except:
+            print("Erreur lecture couleur.")
+
+        # Avancer
+        self.my_marty.walk(1)
+
+        self.auto_time_left -= 1
 
 
 if __name__ == '__main__':
